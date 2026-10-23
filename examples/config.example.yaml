@@ -1,0 +1,24 @@
+plugins:
+  enabled: [qq-group-tools] # Merge with your other enabled plugins.
+  entries:
+    qq-group-tools:
+      allow_tool_override: true
+      settings:
+        owner_id: YOUR_OWNER_OPENID
+        jev_auto_approve: false
+platforms:
+  qqbot:
+    enabled: true
+    extra:
+      dm_policy: allowlist
+      allow_from: [YOUR_OWNER_OPENID]
+      group_policy: allowlist
+      group_allow_from: [YOUR_GROUP_OPENID]
+      group_keywords: [大肥鱼]
+      short_replies: true
+      notice_delivery: private
+platform_toolsets:
+  qqbot: [hermes-qqbot, qq_tasks]
+delegation:
+  inherit_mcp_toolsets: true
+# Preserve your existing model/MCP/voice settings and credentials.

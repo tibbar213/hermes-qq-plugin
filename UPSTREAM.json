@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/NousResearch/hermes-agent",
+  "tested_reference": "4d04303818b61bf3aa09278af48356315515965b",
+  "core_patches_required": false,
+  "registration": [
+    "register_platform",
+    "register_tool override=True",
+    "register_middleware",
+    "register_terminal_environment_provider",
+    "register_cli_command"
+  ],
+  "note": "Capability requirements, not a forced downgrade or fixed commit."
+}
