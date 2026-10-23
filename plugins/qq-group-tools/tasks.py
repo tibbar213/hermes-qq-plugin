@@ -9,7 +9,6 @@ from .settings import owner_id
 from gateway.session_context import get_session_env
 from tools import approval, approval_context
 from tools.delegate_tool import delegate_task
-from .review import review_task
 from .result_status import task_result_status
 from .notices import acknowledge
 from .platform.task_workspaces import TaskStore
@@ -108,14 +107,11 @@ def handle(args, parent_agent=None, **kwargs):
         return json.dumps({"error": str(exc)}, ensure_ascii=False)
     acknowledge(store, chat, message)
     try:
-        approved_by = authorize(goal, context, access, user, chat, run_id, require_host=bool(args.get("require_host"))) 
+        approved_by = authorize(goal, context, access, user, chat, run_id)
         if not approved_by:
             result = {"error": "主人未批准此任务", "task_id": task_id}
             store.finish(task_id, "denied")
             return json.dumps(result, ensure_ascii=False)
-        # Automatic review may authorize ordinary workspace work, never host/root authority.
-        if access == "server" and user != owner_id() and approved_by != "owner":
-            access = "sandbox"
         result = execute(parent_agent, task_id, run_id, user, chat, access, workspace, goal, context)
         payload = json.loads(result)
         state = task_result_status(payload)
@@ -135,18 +131,16 @@ def handle(args, parent_agent=None, **kwargs):
         raise
 
 
-def authorize(goal, context, access, user, chat, run_id, require_host=False):
+def authorize(goal, context, access, user, chat, run_id):
     if access != "server" or user == owner_id():
         return "requester"
     if approval._yolo_active() or approval_context._get_approval_mode() == "off":
         return ""
     reason = ("QQ_TASK\n成员：" + user + "\n群/会话：" + chat + "\n任务：" + goal
               + "\n范围与验收：" + context + "\n权限：宿主机/root（只限本任务）\n授权：仅本轮完整任务；结束自动失效")
-    reviewed = review_task(goal, context)
-    if reviewed["verdict"] == "APPROVE" and not require_host:
-        return reviewed.get("reviewer", "model")
+    # This native action gate asks a human directly; it never calls the smart guardian.
     decision = approval.request_tool_approval(
-        "qq_task", reason + "\n任务初审：" + reviewed["summary"], rule_key="qq-task:" + run_id)
+        "qq_task", reason, rule_key="qq-task:" + run_id)
     return "owner" if decision.get("approved") else ""
 
 
@@ -194,13 +188,12 @@ def execute(parent_agent, task_id, run_id, user, chat, access, workspace, goal, 
 
 SCHEMA = {
     "name": "qq_task",
-    "description": "QQ后台独立子代理任务。查询用read_only；编写运行脚本、处理文件、构建项目默认sandbox，隔离容器内有Python3、Node22和npm，可联网搜索下载和用pip/npm安装本任务依赖，不能访问宿主机、内网、云元数据或凭据；修改宿主机服务、部署或安装系统软件包用server。主人来源身份发起的server任务直接授权，可从沙箱任务升级无需再问主人；其他成员的server任务默认模型审核（JEV可选），自动通过仅在沙箱执行；确需宿主机/root须设require_host=true，由主人明确批准整项任务。主代理自由指定分工，不能创造新权限。收到dispatched后结束当前回合，结果稍后由主代理自然转述；不轮询，无其他回答时输出NO_REPLY。可用resume_task_id继续当前成员已结束任务的原目录。整项任务一次申请，不逐命令审批。",
+    "description": "QQ后台独立子代理任务。查询用read_only；编写运行脚本、处理文件、构建项目默认sandbox，隔离容器内有Python3、Node22和npm，可联网搜索下载和用pip/npm安装本任务依赖，不能访问宿主机、内网、云元数据或凭据；修改宿主机服务、部署或安装系统软件包用server。主人来源身份发起的server任务直接授权，可从沙箱任务升级无需再问主人；查询和sandbox任务直接执行，不调用JEV或模型初审；其他成员的server任务直接私发给主人批准整项任务，拒绝或未批准都不能执行。权限仅由access决定。主代理自由指定分工，不能创造新权限。收到dispatched后结束当前回合，结果稍后由主代理自然转述；不轮询，无其他回答时输出NO_REPLY。可用resume_task_id继续当前成员已结束任务的原目录。整项任务一次申请，不逐命令审批。",
     "parameters": {"type": "object", "properties": {
         "goal": {"type": "string", "description": "用户的完整任务目标"},
         "title": {"type": "string", "description": "内部任务短标题，建议2到12字，例如接入Tavily、网站首页。不含密钥或私人信息；用来命名目录，不向群里展示工单标题。省略则从目标生成；复用原任务时保留原目录名。"},
         "context": {"type": "string", "description": "必要上下文、允许操作的对象、目录、限制和验收标准；不得擅自扩大用户请求"},
         "access": {"type": "string", "enum": ["read_only", "sandbox", "server"]},
-        "require_host": {"type": "boolean", "description": "server任务确实需要宿主机/root时必须为true，其他成员将发给主人整项任务授权；主人身份直接放行。省略或false时其他成员自动审核通过只获sandbox，不得声称已操作宿主机。"},
         "resume_task_id": {"type": "string", "description": "仅紧接的追问确需沿用原目录时填写最近qq_task返回的task_id；新话题省略。只能继续当前成员在本会话的任务。context从近期对话提供本次所需信息，不自动加载旧结果。"}
 
     }, "required": ["goal", "context", "access"]}

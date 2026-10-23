@@ -8,7 +8,7 @@
 
 1. 检查 Hermes 是否提供 register_platform、register_tool 的 override 参数、register_middleware、register_terminal_environment_provider 和 register_cli_command。检查插件主进程模式以及原生后台子代理、审批和会话能力。不能为绕过不兼容而运行时修改核心函数或源文件；缺少接口时给出具体升级要求，不强制降级到参考 commit。
 2. 备份已有插件、配置及一致性任务数据库。把本项目 plugins/qq-group-tools/ 安装到当前 profile 的 plugins/qq-group-tools/，启用插件。已存在同名定制时先比较最新功能，不能直接覆盖别人的新增功能。
-3. 配置 plugins.entries.qq-group-tools.settings.owner_id 为我的真实 QQ OpenID，并明确设置该插件 allow_tool_override: true，以启用正式注册的 web_extract 覆盖。默认 jev_auto_approve: false，使用普通模型；只有我选择时才启用 JEV。没有有效审核结果时转人工，不能默认通过。
+3. 配置 plugins.entries.qq-group-tools.settings.owner_id 为我的真实 QQ OpenID，并明确设置该插件 allow_tool_override: true，以启用正式注册的 web_extract 覆盖。查询和沙箱任务直接执行；主人发起的宿主机任务直接授权，其他成员的宿主机任务整项私发主人审批。没有批准不得执行，不配置 JEV 或其他审核模型。
 4. 按 examples 合并 QQ 和工具集配置，保留原 model、MCP 与 voice。不要恢复作者的服务器域名、Key、OpenID、记忆或日志，也不要另造 API 优先级。已有群与会话沿用 qqbot 平台名。
 5. 若需要沙箱/宿主执行，先检查现有 broker、镜像、网络规则、受限 sudo 与清理服务。新安装时审查 deployment 模板，按真实 UID、任务根目录、技能路径和构建后的不可变镜像 ID 替换占位符；校验 root 所有权、visudo 和网络冲突。不要提供无限 sudo，不要把 Docker socket、宿主机凭据或 broker 暴露给沙箱。依赖未就绪时明确提示，不回退到宿主机执行。
 6. 可选语音使用 scripts/mimo_voice.py，通过 Hermes command provider 和 env_passthrough 传 MIMO_API_KEY；转换格式需要 ffmpeg。Tavily 只放行明确的查询工具，其他 MCP 单独判断。
@@ -20,7 +20,7 @@
 
 ## 验证与交付
 
-先按 scripts/run_tests.py 的说明在隔离源码副本运行测试；测试只使用模拟身份和临时 HERMES_HOME。不要在生产源码里复制测试 fixture。可选 JEV 提供方缺失时明确记录跳过范围。
+先按 scripts/run_tests.py 的说明在隔离源码副本运行测试；测试只使用模拟身份和临时 HERMES_HOME。不要在生产源码里复制测试 fixture。
 
 实际验证插件接管 qqbot 平台、原生 web_extract 覆盖、一次真实文件读取与 MCP 查询；验证后台子代理、权限撤销和正确成员/会话回传。查询任务不能越界或写入，未知 MCP 不能自动放行。确认清理 dry-run 不触碰交付文件或活跃任务。
 

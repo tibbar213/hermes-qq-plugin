@@ -5,7 +5,6 @@ plugins:
       allow_tool_override: true
       settings:
         owner_id: YOUR_OWNER_OPENID
-        jev_auto_approve: false
 platforms:
   qqbot:
     enabled: true

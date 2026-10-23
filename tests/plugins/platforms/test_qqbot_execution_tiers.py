@@ -29,14 +29,13 @@ def plugin(tmp_path, monkeypatch):
     (True,"sandbox","ESCALATE",False,"sandbox",0),
     (False,"sandbox","ESCALATE",False,"sandbox",0),
     (False,"read_only","ESCALATE",False,"read_only",0),
-    (False,"server","APPROVE",False,"sandbox",0),
+    (False,"server","APPROVE",False,None,1),
     (False,"server","ESCALATE",True,"server",1),
     (False,"server","ESCALATE",False,None,1),
 ])
 def test_task_authority_matrix(plugin,monkeypatch,owner,access,review,human,expected,asks):
     if owner:
         set_session_vars(platform="qqbot",user_id=plugin.tasks.owner_id(),chat_id="group",chat_type="group")
-    monkeypatch.setattr(plugin.tasks,"review_task",lambda *a:{"verdict":review,"summary":"review","reviewer":"jev"})
     ask=Mock(return_value={"approved":human})
     monkeypatch.setattr(approval,"request_tool_approval",ask)
     observed=[]
@@ -105,8 +104,7 @@ def test_cleanup_failure_still_finishes_task_and_releases_host_lock(plugin,monke
     assert not task.active and not plugin.tasks.SERVER_LOCK.locked()
 
 
-def test_explicit_host_task_still_needs_owner_even_after_jev_approval(plugin,monkeypatch):
-    monkeypatch.setattr(plugin.tasks,"review_task",lambda *a:{"verdict":"APPROVE","summary":"allowed","reviewer":"jev"})
+def test_legacy_host_flag_still_requires_owner_approval(plugin,monkeypatch):
     ask=Mock(return_value={"approved":True})
     monkeypatch.setattr(approval,"request_tool_approval",ask)
     captured=[]

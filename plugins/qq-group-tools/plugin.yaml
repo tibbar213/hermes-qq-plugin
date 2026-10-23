@@ -1,5 +1,5 @@
 name: qq-group-tools
-version: 2.0.0
+version: 2.0.1
 description: Standalone QQ official platform, native background tasks, approvals and source-verified extraction
 provides_hooks: [pre_tool_call, subagent_stop]
 provides_tools: [qq_task, web_extract]

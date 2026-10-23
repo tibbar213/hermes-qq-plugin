@@ -1,4 +1,4 @@
-"""Admission failures must not become successful tasks; model review is the default."""
+"""Admission failures must not become successful tasks."""
 import importlib.util
 import json
 from pathlib import Path
@@ -52,16 +52,3 @@ def test_inline_fallback_uses_actual_result(plugin,monkeypatch,payload,expected)
     monkeypatch.setattr(module.tasks,"execute",lambda *a:json.dumps(payload))
     result=json.loads(module.tasks.handle({"goal":"test","access":"read_only"},parent_agent=SimpleNamespace()))
     assert TaskStore(home).get(result["task_id"],"group","member-a")["status"]==expected
-
-def test_empty_settings_review_with_model_without_touching_jev(plugin,monkeypatch):
-    module,_=plugin
-    review=sys.modules[module.tasks.__package__+".review"]
-    monkeypatch.setattr(review,"load_config_readonly",dict)
-    model=Mock(return_value="APPROVE")
-    jev=Mock()
-    monkeypatch.setattr(review,"call_model",model)
-    monkeypatch.setattr(review,"call_jev",jev)
-    result=review.review_task("create demo","only workspace")
-    assert result["verdict"]=="APPROVE" and result["reviewer"]=="model"
-    model.assert_called_once()
-    jev.assert_not_called()

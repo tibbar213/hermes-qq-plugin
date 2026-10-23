@@ -22,7 +22,6 @@ def plugin(tmp_path, monkeypatch):
     sys.modules[spec.name]=module
     spec.loader.exec_module(module)
     monkeypatch.setattr(module.tasks,"get_hermes_home",lambda:tmp_path)
-    monkeypatch.setattr(module.tasks,"review_task",lambda *a:{"verdict":"ESCALATE","summary":"test human gate"})
     tokens=set_session_vars(platform="qqbot",user_id="member-a",chat_id="group",chat_type="group",
                             session_key="agent:main:qqbot:group:group:member-a")
     yield module
