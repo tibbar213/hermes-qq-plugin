@@ -31,6 +31,10 @@ def _guard(tool_name, args, **kwargs):
             return {"action": "block", "message": "当前子代理只执行本任务，不可递归派发"}
         if tool_name == "terminal" and args.get("persist_on_release"):
             return {"action": "block", "message": "任务进程不能脱离生命周期；部署常驻服务请使用已授权的服务器服务管理"}
+        if tool_name == "fish_read" and args.get("action", "state") in {
+            "state", "web", "bilibili", "home_feed", "following_feed"
+        }:
+            return None
         if task.access == "server":
             if tool_name == "terminal" and (args.get("background") or str(args.get("command", "")).rstrip().endswith("&")):
                 return {"action": "block", "message": "服务器命令请以前台方式运行并设置适当timeout；常驻服务使用systemd管理"}

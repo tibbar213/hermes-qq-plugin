@@ -102,3 +102,22 @@ def test_query_still_cannot_modify_files(query):
     module, work, _ = query
     for tool in ["write_file", "patch", "memory", "send_message"]:
         assert module.policy.guard(tool, {"path": str(work/"test.txt")})["action"] == "block"
+
+
+@pytest.mark.parametrize("access", ["read_only", "sandbox"])
+@pytest.mark.parametrize("args", [{}, {"action": "state"}, {"action": "web", "query": "公开资料"},
+    {"action": "bilibili", "query": "视频"}, {"action": "home_feed"}, {"action": "following_feed"}])
+def test_bilibili_read_facade_is_available_to_query_and_sandbox(query, access, args):
+    module = query[0]
+    module.tasks.current().access = access
+    assert module.policy.guard("fish_read", args) is None
+
+
+@pytest.mark.parametrize("access", ["read_only", "sandbox"])
+@pytest.mark.parametrize("tool,args", [("fish_read", {"action": "dynamic"}),
+    ("fish_read", {"action": "delete"}), ("fish_life", {"action": "comment"}),
+    ("bili_action", {"action": "like"})])
+def test_read_facade_does_not_grant_social_writes(query, access, tool, args):
+    module = query[0]
+    module.tasks.current().access = access
+    assert module.policy.guard(tool, args)["action"] == "block"
