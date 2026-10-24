@@ -8,6 +8,7 @@ def register(ctx):
     ctx.register_middleware("tool_execution", wrap_tool)
     ctx.register_hook("pre_tool_call", policy.isolate_browser)
     ctx.register_hook("pre_tool_call", policy.guard)
+    ctx.register_hook("pre_llm_call", policy.private_chat_context)
     ctx.register_hook("subagent_stop", tasks.on_subagent_stop)
     ctx.register_tool(name="qq_task", toolset="qq_tasks", schema=tasks.SCHEMA,
                       handler=tasks.handle, description=tasks.SCHEMA["description"], emoji="🐟")

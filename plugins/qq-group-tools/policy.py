@@ -11,6 +11,21 @@ SAFE_COMMAND = re.compile(r"^(?:date(?: -u| -Is| -Iseconds)?|whoami|id|uptime|un
 def actor():
     return str(get_session_env("HERMES_SESSION_PLATFORM", "")), str(get_session_env("HERMES_SESSION_USER_ID", ""))
 
+def native_owner_dm():
+    """Only verified owner C2C intake gets the unwrapped Hermes experience."""
+    platform,user=actor()
+    owner=tasks.owner_id()
+    return bool(platform=='qqbot' and owner and user==owner
+                and get_session_env('HERMES_SESSION_CHAT_TYPE','') in {'dm','c2c'}
+                and get_session_env('HERMES_SESSION_CHAT_ID','')==owner)
+
+
+def private_chat_context(**kwargs):
+    if native_owner_dm() and not tasks.current():
+        return {'context':'当前真实来源是主人本人的QQ私聊。本轮使用Hermes原生对话、工具执行和审批流程；群聊中的qq_task强制分工、任务目录只读限制、派发后静默等待规则不适用于这里。直接完成已授权的工作，确需分工时自行选择原生delegate_task；不要调用qq_task，也不授予或继承任何子代理的临时授权。'}
+    return None
+
+
 def guard(tool_name, args, **kwargs):
     try:
         return _guard(tool_name, args, **kwargs)
@@ -26,6 +41,10 @@ def _guard(tool_name, args, **kwargs):
     if not user:
         return {"action": "block", "message": "缺少可验证的 QQ 成员身份"}
     task = tasks.current()
+    if not task and native_owner_dm():
+        if tool_name == 'qq_task':
+            return {'action':'block','message':'主人私聊使用 Hermes 原生工具直接完成任务；需要分工时可自主使用原生 delegate_task。'}
+        return None  # Native tool policy/approval still applies; no task-level grant.
     if task:
         if tool_name in {"qq_task", "delegate_task"}:
             return {"action": "block", "message": "当前子代理只执行本任务，不可递归派发"}
@@ -101,6 +120,8 @@ def isolate_browser(tool_name, args, **kwargs):
     if platform != "qqbot" or not user:
         return None
     task = tasks.current()
+    if not task and native_owner_dm():
+        return None
     if tool_name == "terminal" and task and not args.get("workdir"):
         return {"action": "modify", "args": {"workdir": "/workspace" if task.access == "sandbox" else task.workspace}}
     if tool_name != "browser_exec":

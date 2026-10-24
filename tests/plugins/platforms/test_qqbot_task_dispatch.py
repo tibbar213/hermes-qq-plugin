@@ -502,3 +502,50 @@ def test_legacy_task_directory_survives_schema_upgrade(tmp_path):
     again=store.begin(task_id,"group","member","continue","scope",resume=True)
     assert again==old
     assert (again/"report.txt").read_text()=="old result"
+
+
+@pytest.mark.parametrize('tool,args',[
+    ('terminal',{'command':'date'}),('read_file',{'path':'/tmp/test'}),
+    ('write_file',{'path':'/tmp/test','content':'hello'}),('delegate_task',{'goal':'test'}),
+    ('browser_exec',{}),('mcp__example',{})])
+def test_owner_private_chat_uses_native_tools_without_task_grant(plugin,monkeypatch,tool,args):
+    monkeypatch.setattr(plugin.tasks,'owner_id',lambda:OWNER)
+    tokens=set_session_vars(platform='qqbot',user_id=OWNER,chat_id=OWNER,chat_type='dm')
+    try:
+        assert plugin.policy.guard(tool,args) is None
+        assert plugin.policy.isolate_browser(tool,args) is None
+        assert plugin.tasks.current() is None
+        assert '原生' in plugin.policy.private_chat_context()['context']
+        assert plugin.policy.guard('qq_task',{})['action']=='block'
+    finally:clear_session_vars(tokens)
+
+
+@pytest.mark.parametrize('user,chat,kind',[(OWNER,'group','group'),('member-a','member-a','dm'),(OWNER,'different-chat','dm'),(OWNER,OWNER,'')])
+def test_native_private_path_does_not_grant_group_or_other_member_access(plugin,monkeypatch,user,chat,kind):
+    monkeypatch.setattr(plugin.tasks,'owner_id',lambda:OWNER)
+    tokens=set_session_vars(platform='qqbot',user_id=user,chat_id=chat,chat_type=kind)
+    try:
+        assert plugin.policy.guard('terminal',{'command':'date'})['action']=='block'
+        assert plugin.policy.private_chat_context() is None
+    finally:clear_session_vars(tokens)
+
+
+def test_owner_dm_does_not_bypass_existing_scoped_child_limits(plugin,monkeypatch):
+    monkeypatch.setattr(plugin.tasks,'owner_id',lambda:OWNER)
+    tokens=set_session_vars(platform='qqbot',user_id=OWNER,chat_id=OWNER,chat_type='dm')
+    token=plugin.tasks.CURRENT.set(plugin.tasks.Task('task',OWNER,OWNER,'read_only','/tmp/test'))
+    try:
+        assert plugin.policy.guard('write_file',{'path':'/tmp/out','content':'no'})['action']=='block'
+    finally:
+        plugin.tasks.CURRENT.reset(token);clear_session_vars(tokens)
+
+
+def test_source_toolsets_hide_custom_dispatch_only_in_owner_dm(monkeypatch):
+    from hermes_cli import config
+    configured=['hermes-qqbot','qq_tasks','bilibili','custom_toolset']
+    monkeypatch.setattr(config,'load_config_readonly',lambda:{'platform_toolsets':{'qqbot':configured},'plugins':{'entries':{'qq-group-tools':{'settings':{'owner_id':OWNER}}}}})
+    adapter=QQAdapter.__new__(QQAdapter)
+    assert adapter.toolsets_for_source(SimpleNamespace(user_id=OWNER,chat_id=OWNER,chat_type='dm'))==['hermes-qqbot','bilibili','custom_toolset']
+    assert adapter.toolsets_for_source(SimpleNamespace(user_id=OWNER,chat_id='group',chat_type='group')) is None
+    assert adapter.toolsets_for_source(SimpleNamespace(user_id='member',chat_id='member',chat_type='dm')) is None
+    assert configured==['hermes-qqbot','qq_tasks','bilibili','custom_toolset']

@@ -1785,6 +1785,20 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         """Pass markdown through when supported, else strip it (as BlueBubbles/SMS do)."""
         return content if self._markdown_support else strip_markdown(content)
 
+    def toolsets_for_source(self, source):
+        """Owner private chat uses native Hermes tools; group configuration stays intact."""
+        from ..settings import owner_id
+        owner = owner_id()
+        if not (owner and source.user_id == owner and source.chat_id == owner
+                and source.chat_type in {'dm', 'c2c'}):
+            return None
+        from hermes_cli.config import load_config_readonly
+        configured = (load_config_readonly().get('platform_toolsets') or {}).get('qqbot')
+        if not isinstance(configured, list):
+            configured = ['hermes-qqbot']
+        native = [name for name in configured if name != 'qq_tasks']
+        return native or ['hermes-qqbot']
+
     async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         chat_type = self._guess_chat_type(chat_id)
         return {"name": chat_id, "type": "group" if chat_type in {"group", "guild"} else "dm"}
