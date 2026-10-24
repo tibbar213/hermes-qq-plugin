@@ -36,7 +36,15 @@
 
 **纯插件不等于无系统依赖。** QQ 收发不需要改 Hermes；沙箱和宿主机执行还依赖 Docker、root-owned 执行代理、受限 sudo 和网络规则，见 [deployment/README.md](deployment/README.md)。已有部署复用这些依赖；新部署必须先审查模板、替换占位符，不能把 root 执行代理挂进容器。
 
-配置见 [examples/config.example.yaml](examples/config.example.yaml)。群号与 group OpenID 不等同。清理命令为 `hermes qq-task-cleanup --dry-run`，确认后去掉 `--dry-run`；只清理闲置 14 天且非活跃任务的 `.tmp/`、`.cache/`。
+配置见 [examples/config.example.yaml](examples/config.example.yaml)。群号与 group OpenID 不等同。
+
+终端查询命令（输出 JSON，不修改配置或任务记录）：
+
+- `hermes qq status`：配置情况、网关进程和 QQ 连接快照；快照过期时连接状态为 unknown。
+- `hermes qq groups`：授权群及曾观察到的群 OpenID，分别标明授权和缓存来源；缓存标签不保证是真实群名。
+- `hermes qq tasks --limit 20`：最近任务的发起人、目标、状态及目录，最多 100 条。
+
+清理命令仍为 `hermes qq-task-cleanup --dry-run`，确认后去掉 `--dry-run`；只清理闲置 14 天且非活跃任务的 `.tmp/`、`.cache/`。
 
 ## 验证与许可
 
