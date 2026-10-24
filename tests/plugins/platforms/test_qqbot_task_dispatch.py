@@ -301,30 +301,15 @@ async def test_task_result_has_only_member_mention_and_stays_one_message(tmp_pat
     await a.send("group","普通聊天","other-request")
     assert a._send_chunk.call_args.args[1]=="普通聊天"
 
-def test_start_ack_is_sent_once_to_original_request(plugin,monkeypatch):
-    import asyncio
-    import threading
-    from standalone_qq.platform.task_workspaces import TaskStore
-    store=TaskStore(plugin.tasks.get_hermes_home())
-    store.begin("d"*24,"group","member-a","测试任务","仅任务目录","original-request")
-    loop=asyncio.new_event_loop()
-    ready=threading.Event()
-    loop.call_soon(ready.set)
-    worker=threading.Thread(target=loop.run_forever)
-    adapter=SimpleNamespace(send=AsyncMock(return_value=SendResult(success=True)))
-    notices=sys.modules[plugin.tasks.acknowledge.__module__]
-    monkeypatch.setattr(notices,"_live_adapter",
-                        lambda platform:(SimpleNamespace(_gateway_loop=loop),adapter))
-    worker.start()
-    try:
-        assert ready.wait(timeout=5)
-        notices.acknowledge(store,"group","original-request")
-        notices.acknowledge(store,"group","original-request")
-        adapter.send.assert_awaited_once_with("group","行，我看看",reply_to="original-request")
-    finally:
-        loop.call_soon_threadsafe(loop.stop)
-        worker.join(timeout=5)
-        loop.close()
+def test_dispatch_does_not_send_a_canned_start_message(plugin, monkeypatch):
+    from tools import send_message_senders
+    live = Mock(side_effect=AssertionError("Task dispatch must not send an automatic acknowledgment"))
+    monkeypatch.setattr(send_message_senders, "_live_adapter", live)
+    monkeypatch.setattr(plugin.tasks, "delegate_task", Mock(return_value='{"status":"completed"}'))
+    result = json.loads(plugin.tasks.handle(
+        {"goal": "查询", "context": "仅查询", "access": "read_only"}, parent_agent=SimpleNamespace()))
+    assert result["status"] == "completed"
+    live.assert_not_called()
 
 @pytest.mark.asyncio
 async def test_inbound_message_anchor_reaches_task_context():

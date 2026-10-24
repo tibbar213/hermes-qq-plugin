@@ -18,7 +18,6 @@ def plugin(tmp_path, monkeypatch):
     sys.modules[spec.name]=module
     spec.loader.exec_module(module)
     monkeypatch.setattr(module.tasks,"get_hermes_home",lambda:tmp_path)
-    monkeypatch.setattr(module.tasks,"acknowledge",lambda *a:None)
     tokens=set_session_vars(platform="qqbot",user_id="member-a",chat_id="group")
     yield module,tmp_path
     clear_session_vars(tokens)

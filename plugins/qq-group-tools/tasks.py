@@ -10,7 +10,6 @@ from gateway.session_context import get_session_env
 from tools import approval, approval_context
 from tools.delegate_tool import delegate_task
 from .result_status import task_result_status
-from .notices import acknowledge
 from .platform.task_workspaces import TaskStore
 
 CURRENT = ContextVar("qq_approved_task", default=None)
@@ -105,7 +104,6 @@ def handle(args, parent_agent=None, **kwargs):
         workspace = store.begin(task_id, chat, user, goal, context, message, resume=bool(resume_id), title=str(args.get("title") or ""))
     except ValueError as exc:
         return json.dumps({"error": str(exc)}, ensure_ascii=False)
-    acknowledge(store, chat, message)
     try:
         approved_by = authorize(goal, context, access, user, chat, run_id)
         if not approved_by:
