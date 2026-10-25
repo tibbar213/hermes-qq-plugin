@@ -10,6 +10,8 @@ from tools.environments.base_output import _popen_bash
 
 BROKER = "/usr/local/sbin/hermes-qq-exec"
 SANDBOX_SLOT = threading.Semaphore(1)
+PRIVATE_GRANTS = {}
+PRIVATE_GRANTS_LOCK = threading.RLock()
 EXECUTION_TOOLS = frozenset({"terminal", "read_file", "search_files", "write_file", "patch"})
 
 
@@ -152,11 +154,26 @@ def wrap_tool(tool_name, args, next_call, **kwargs):
     from tools.terminal_scope import get_terminal_scope, set_terminal_scope, reset_terminal_scope
     from tools import approval_context
     from tools.registry import tool_error
-    from .policy import guard
+    from .policy import guard, native_owner_dm
     scope_token = set_terminal_scope(get_terminal_scope())
     approval_token = approval_context.set_current_session_key(
         approval_context.get_current_session_key(default=""))
+    private_grant = ""
     try:
+        if native_owner_dm() and tasks_free() and tool_name not in {"delegate_task", "qq_task", "tool_call"}:
+            from tools import approval
+            private_grant = approval_context.get_current_session_key(default='')
+            if private_grant:
+                # Keep the native route intact: process ownership and async result
+                # delivery also use this key. Refcount parallel calls, then restore.
+                with PRIVATE_GRANTS_LOCK:
+                    entry = PRIVATE_GRANTS.get(private_grant)
+                    if entry is None:
+                        entry = [0, approval.is_session_yolo_enabled(private_grant)]
+                        PRIVATE_GRANTS[private_grant] = entry
+                        if not entry[1]:
+                            approval.enable_session_yolo(private_grant)
+                    entry[0] += 1
         decision = guard(tool_name, args, **kwargs)
         if decision and decision.get("action") == "block":
             return tool_error(decision["message"])
@@ -164,5 +181,19 @@ def wrap_tool(tool_name, args, next_call, **kwargs):
             args = {**args, **decision["args"]}
         return next_call(args)
     finally:
+        if private_grant:
+            from tools import approval
+            with PRIVATE_GRANTS_LOCK:
+                entry = PRIVATE_GRANTS[private_grant]
+                entry[0] -= 1
+                if entry[0] == 0:
+                    if not entry[1]:
+                        approval.disable_session_yolo(private_grant)
+                    del PRIVATE_GRANTS[private_grant]
         approval_context.reset_current_session_key(approval_token)
         reset_terminal_scope(scope_token)
+
+
+def tasks_free():
+    from .tasks import current
+    return current() is None

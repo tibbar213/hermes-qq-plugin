@@ -130,11 +130,12 @@ def handle(args, parent_agent=None, **kwargs):
 
 
 def authorize(goal, context, access, user, chat, run_id):
-    if access != "server" or user == owner_id():
+    if access != "server":
         return "requester"
     if approval._yolo_active() or approval_context._get_approval_mode() == "off":
         return ""
-    reason = ("QQ_TASK\n成员：" + user + "\n群/会话：" + chat + "\n任务：" + goal
+    from .settings import display_identity
+    reason = ("QQ_TASK\n成员：" + display_identity(user) + "\n来源：" + display_identity(chat,"group") + "\n任务：" + goal
               + "\n范围与验收：" + context + "\n权限：宿主机/root（只限本任务）\n授权：仅本轮完整任务；结束自动失效")
     # This native action gate asks a human directly; it never calls the smart guardian.
     decision = approval.request_tool_approval(

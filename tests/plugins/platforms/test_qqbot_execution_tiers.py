@@ -25,7 +25,8 @@ def plugin(tmp_path, monkeypatch):
     reset_terminal_scope(scope)
 
 @pytest.mark.parametrize("owner,access,review,human,expected,asks",[
-    (True,"server","ESCALATE",False,"server",0),
+    (True,"server","ESCALATE",True,"server",1),
+    (True,"server","ESCALATE",False,None,1),
     (True,"sandbox","ESCALATE",False,"sandbox",0),
     (False,"sandbox","ESCALATE",False,"sandbox",0),
     (False,"read_only","ESCALATE",False,"read_only",0),

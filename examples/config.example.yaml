@@ -5,6 +5,8 @@ plugins:
       allow_tool_override: true
       settings:
         owner_id: YOUR_OWNER_OPENID
+        group_labels: {} # Optional: group OpenID -> your group name/number label
+        member_labels: {} # Optional: member OpenID -> your display nickname
 platforms:
   qqbot:
     enabled: true

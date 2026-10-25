@@ -36,7 +36,7 @@ def plugin(tmp_path,monkeypatch):
     clear_session_vars(tokens)
 
 @pytest.mark.parametrize("user,access,expected_asks",[
-    ("member","read_only",0),("member","sandbox",0),("owner","server",0),
+    ("member","read_only",0),("member","sandbox",0),("owner","server",1),
     ("member","server",1),
 ])
 @pytest.mark.parametrize("legacy_flag",[None,False,True])

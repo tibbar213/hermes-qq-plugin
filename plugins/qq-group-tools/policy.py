@@ -22,7 +22,7 @@ def native_owner_dm():
 
 def private_chat_context(**kwargs):
     if native_owner_dm() and not tasks.current():
-        return {'context':'当前真实来源是主人本人的QQ私聊。本轮使用Hermes原生对话、工具执行和审批流程；群聊中的qq_task强制分工、任务目录只读限制、派发后静默等待规则不适用于这里。直接完成已授权的工作，确需分工时自行选择原生delegate_task；不要调用qq_task，也不授予或继承任何子代理的临时授权。'}
+        return {'context':'当前真实来源是主人本人的QQ私聊。本轮使用Hermes原生对话和工具执行流程，本人私聊已由主人授权直接执行，不再逐命令询问；群聊中的qq_task强制分工、任务目录只读限制、派发后静默等待规则不适用于这里。直接完成已授权的工作，确需分工时自行选择原生delegate_task；不要调用qq_task，也不授予或继承任何子代理的临时授权。'}
     return None
 
 

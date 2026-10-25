@@ -24,6 +24,7 @@ def plugin(tmp_path, monkeypatch):
     monkeypatch.setattr(module.tasks,"get_hermes_home",lambda:tmp_path)
     tokens=set_session_vars(platform="qqbot",user_id="member-a",chat_id="group",chat_type="group",
                             session_key="agent:main:qqbot:group:group:member-a")
+    monkeypatch.setattr(approval,"request_tool_approval",Mock(return_value={"approved":True}))
     yield module
     clear_session_vars(tokens)
 
@@ -88,13 +89,13 @@ def test_child_failure_revokes_grant(plugin,monkeypatch):
     assert not approval.is_session_yolo_enabled("qq-task:"+captured[0].id)
     assert plugin.tasks.current() is None
 
-def test_owner_task_needs_no_second_confirmation(plugin,monkeypatch):
+def test_owner_group_task_asks_once_for_whole_task(plugin,monkeypatch):
     set_session_vars(platform="qqbot",user_id=OWNER,chat_id="group",chat_type="group")
     ask=Mock()
     monkeypatch.setattr(approval,"request_tool_approval",ask)
     monkeypatch.setattr(plugin.tasks,"delegate_task",lambda **kw:'{"status":"completed"}')
     assert "error" not in json.loads(plugin.tasks.handle({"goal":"检查并修改","access":"server"},parent_agent=SimpleNamespace()))
-    ask.assert_not_called()
+    ask.assert_called_once()
 
 def test_permission_is_bound_to_verified_member(plugin,monkeypatch):
     def child(**kw):
@@ -549,3 +550,57 @@ def test_source_toolsets_hide_custom_dispatch_only_in_owner_dm(monkeypatch):
     assert adapter.toolsets_for_source(SimpleNamespace(user_id=OWNER,chat_id='group',chat_type='group')) is None
     assert adapter.toolsets_for_source(SimpleNamespace(user_id='member',chat_id='member',chat_type='dm')) is None
     assert configured==['hermes-qqbot','qq_tasks','bilibili','custom_toolset']
+
+
+@pytest.mark.parametrize('raises',[False,True])
+def test_owner_private_command_grant_is_local_and_revoked(plugin,monkeypatch,raises):
+    from tools import approval_context
+    monkeypatch.setattr(plugin.tasks,'owner_id',lambda:OWNER)
+    tokens=set_session_vars(platform='qqbot',user_id=OWNER,chat_id=OWNER,chat_type='dm')
+    route=approval_context.set_current_session_key('original-private-route')
+    execution=__import__('importlib').import_module(plugin.__name__+'.execution')
+    keys=[]
+    def command(args):
+        key=approval_context.get_current_session_key();keys.append(key)
+        assert key=='original-private-route'
+        assert approval.is_session_yolo_enabled(key)
+        assert not approval.is_session_yolo_enabled('some-other-group-route')
+        if raises:raise RuntimeError('fixture')
+        return 'ok'
+    try:
+        if raises:
+            with pytest.raises(RuntimeError):execution.wrap_tool('terminal',{'command':'python3 - << EOF'},command)
+        else:assert execution.wrap_tool('terminal',{'command':'python3 - << EOF'},command)=='ok'
+        assert approval_context.get_current_session_key()=='original-private-route'
+        assert not approval.is_session_yolo_enabled(keys[0])
+    finally:approval_context.reset_current_session_key(route);clear_session_vars(tokens)
+
+
+def test_identity_labels_are_display_only(monkeypatch):
+    from standalone_qq.settings import display_identity
+    monkeypatch.setattr('hermes_cli.config.load_config_readonly',lambda:{'plugins':{'entries':{'qq-group-tools':{'settings':{'owner_id':OWNER,'group_labels':{'group':'演示群 123456789'},'member_labels':{'member':'小明'}}}}}})
+    assert display_identity(OWNER)=='主人'
+    assert display_identity('group','group')=='演示群 123456789'
+    assert display_identity('member')=='小明'
+    assert display_identity('not-a-number','group').startswith('授权群·')
+
+
+def test_private_nested_calls_preserve_native_route_and_outer_grant(plugin,monkeypatch):
+    from tools import approval_context
+    execution=__import__('importlib').import_module(plugin.__name__+'.execution')
+    monkeypatch.setattr(plugin.tasks,'owner_id',lambda:OWNER)
+    tokens=set_session_vars(platform='qqbot',user_id=OWNER,chat_id=OWNER,chat_type='dm')
+    context=approval_context.set_current_session_key('nested-owner-route')
+    def inner(args):
+        assert approval_context.get_current_session_key()=='nested-owner-route'
+        assert approval.is_session_yolo_enabled('nested-owner-route')
+        return 'ok'
+    def outer(args):
+        assert execution.wrap_tool('terminal',{},inner)=='ok'
+        assert approval.is_session_yolo_enabled('nested-owner-route')
+        return 'ok'
+    try:
+        assert execution.wrap_tool('terminal',{},outer)=='ok'
+        assert not approval.is_session_yolo_enabled('nested-owner-route')
+        assert not execution.PRIVATE_GRANTS
+    finally:approval_context.reset_current_session_key(context);clear_session_vars(tokens)

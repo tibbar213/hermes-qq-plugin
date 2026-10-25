@@ -1,5 +1,5 @@
 """Owner-only private approval cards bind to one live request; old clicks cannot approve new work."""
-from ..settings import owner_id
+from ..settings import owner_id, display_identity
 import secrets
 import time
 from tools.approval import get_pending_gateway_approval, resolve_gateway_approval
@@ -30,7 +30,8 @@ async def send_owner_approval(adapter,chat_id,req,reply_to=None):
     adapter._chat_type_map[owner_id()]="c2c"
     parsed=adapter._parse_gateway_session_key(req.session_key) or {}
     requester=parsed.get("user_id") or parsed.get("chat_id") or "unknown"
-    text="操作确认\n来源："+chat_id+"\n成员："+requester+"\n"+build_approval_text(req)
+    source_label = "主人私聊" if chat_id==owner_id() else display_identity(chat_id,"group")
+    text="操作确认\n来源："+source_label+"\n成员："+display_identity(requester)+"\n"+build_approval_text(req)
     is_task = req.description.startswith("QQ_TASK")
     if is_task:
         text = "任务授权\n" + req.description.removeprefix("QQ_TASK\n") + "\n仅本任务有效，不是永久权限"
